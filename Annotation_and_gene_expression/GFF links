@@ -1,0 +1,12 @@
+__Download the following gff files, place in "my_gffs" folder__
+
+Dere:https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/003/286/155/GCF_003286155.1_DereRS2/GCF_003286155.1_DereRS2_protein.gff.gz       
+Dana: https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/003/285/975/GCF_003285975.2_DanaRS2.1/GCF_003285975.2_DanaRS2.1_protein.gff.gz        
+Dyak:https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/016/746/365/GCF_016746365.2_Prin_Dyak_Tai18E2_2.1/GCF_016746365.2_Prin_Dyak_Tai18E2_2.1_protein.gff.gz         
+Dtak: https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/224/235/GCF_000224235.1_Dtak_2.0/GCF_000224235.1_Dtak_2.0_protein.gff.gz         
+Dbia: https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/233/415/GCF_000233415.1_Dbia_2.0/GCF_000233415.1_Dbia_2.0_protein.gff.gz
+Dsim: https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/016/746/395/GCF_016746395.1_Prin_Dsim_3.0/GCF_016746395.1_Prin_Dsim_3.0_protein.gff.gz        
+Deug: https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/018/153/835/GCF_018153835.1_ASM1815383v1/GCF_018153835.1_ASM1815383v1_protein.gff.gz         
+Dfic: https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/018/152/265/GCF_018152265.1_ASM1815226v1/GCF_018152265.1_ASM1815226v1_protein.gff.gz           
+Dmel:https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/001/215/GCF_000001215.4_Release_6_plus_ISO1_MT/GCF_000001215.4_Release_6_plus_ISO1_MT_protein.gff.gz        
+Dele:https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/018/152/505/GCF_018152505.1_ASM1815250v1/GCF_018152505.1_ASM1815250v1_protein.gff.gz

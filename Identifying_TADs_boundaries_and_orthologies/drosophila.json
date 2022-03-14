@@ -1,0 +1,169 @@
+{
+    "ref_path":"references",
+    "fastq_path":"fastq_files",
+    "hal_file": "/projects/genetics/ellison_lab/nicole/cactus_allspecies/drosophila.hal",
+    "sn_path": "/scratch/nt365/final_rerun/",
+    "lo_path": "/projects/genetics/ellison_lab/nicole/novogene_deep_HiC/",
+    
+	"species": [
+		"dana",
+        "dere",
+        "dele",
+        "dtri",
+        "dtak",
+        "dbia",
+        "dfic",
+        "dsim",
+        "dyak",
+        "dmel",
+        "deug"
+        
+    ],
+	"d1": [
+		"dana",
+        "dere",
+        "dtri",
+        "dtak",
+        "dele",
+        "dbia",
+        "dfic",
+        "dsim",
+        "dyak",
+        "dmel",
+        "deug"
+        
+    ],
+	"d2": [
+		"dana",
+        "dere",
+        "dtri",
+        "dtak",
+        "dbia",
+        "dfic",
+        "dsim",
+        "dyak",
+        "dmel",
+        "deug",
+        "dele"
+    ],
+
+    "nd": [],
+	"dana":{
+		"fq1_d1": "ananassae_HiC_rep1_R1.fastq.gz",
+		"fq2_d1": "ananassae_HiC_rep1_R2.fastq.gz",
+        "fq1_d2": "ananassae_HiC_rep2_R1.fastq.gz",
+        "fq2_d2": "ananassae_HiC_rep2_R2.fastq.gz",
+		"genome": "dana_muller_o.fasta",
+        "matrix_filter_min": "-2",
+        "matrix_filter_max": "1",
+        "hal": "Dananassae"
+	},
+
+	"dere":{
+		"fq1_d1": "erecta_HiC_rep1_R1.fastq.gz",
+		"fq2_d1": "erecta_HiC_rep1_R2.fastq.gz",
+        "fq1_d2": "erecta_HiC_rep2_R1.fastq.gz",
+        "fq2_d2": "erecta_HiC_rep2_R2.fastq.gz",
+		"genome": "dere_muller_o.fasta",
+        "matrix_filter_min": "-2",
+        "matrix_filter_max": "2",
+        "hal": "Derecta",
+        "cut" : "13-15"
+	},
+    
+    "dtri":{
+        "fq1_d1": "triauraria_HiC_rep1_R1.fastq.gz",
+        "fq2_d1": "triauraria_HiC_rep1_R2.fastq.gz",
+        "fq1_d2": "triauraria_HiC_rep2_R1.fastq.gz",
+        "fq2_d2": "triauraria_HiC_rep2_R2.fastq.gz",
+        "genome": "dtria_muller_o.fasta",
+        "matrix_filter_min": "-2",
+        "matrix_filter_max": "2",
+        "hal": "Dtriauroria"
+    },
+    "dtak":{
+        "fq1_d1": "takahashii_HiC_7_8_R1.fastq.gz",
+        "fq2_d1": "takahashii_HiC_7_8_R2.fastq.gz",
+        "fq1_d2": "takahashii_HiC_embryos_IR98-3_E-12201_R1.fastq.gz",
+        "fq2_d2": "takahashii_HiC_embryos_IR98-3_E-12201_R2.fastq.gz",
+        "genome": "dtak_muller_o.fasta",
+        "matrix_filter_min": "-2",
+        "matrix_filter_max": "2",
+        "hal": "Dtakahashii"
+    },
+    "dele":{
+        "fq1_d1": "elegans_nuclei_S1_R1_001.fastq.gz",
+        "fq2_d1": "elegans_nuclei_S1_R2_001.fastq.gz",
+        "fq1_d2": "elegans_HiC_rep2_R1.fq.gz",
+        "fq2_d2": "elegans_HiC_rep2_R2.fq.gz",
+        "genome": "dele_muller_o.fasta",
+        "matrix_filter_min": "-2",
+        "matrix_filter_max": "2",
+        "hal": "Delegans"
+    },
+    "dbia":{
+        "fq1_d1": "biarmipes_HiC_rep1_R1.fastq.gz",
+        "fq2_d1": "biarmipes_HiC_rep1_R2.fastq.gz",
+        "fq1_d2": "biarmipes_HiC_rep2_R1.fastq.gz",
+        "fq2_d2": "biarmipes_HiC_rep2_R2.fastq.gz",
+        "genome": "dbia_muller_o.fasta",
+        "matrix_filter_min": "-2",
+        "matrix_filter_max": "2",
+        "hal": "Dbiarmipes"
+    },
+    "deug":{
+        "fq1_d1": "eugracilis_HiC_rep1_1.fastq.gz",
+        "fq2_d1": "eugracilis_HiC_rep1_2.fastq.gz",
+        "fq1_d2": "eugracilis_HiC_rep2_1.fastq.gz",
+        "fq2_d2": "eugracilis_HiC_rep2_2.fastq.gz",
+        "genome": "deug_muller_o.fasta",
+        "matrix_filter_min": "-2",
+        "matrix_filter_max": "2",
+        "hal": "Deugracilis"
+    },
+    "dfic":{
+        "fq1_d1": "ficusphila_HiC_rep1_R1.fastq.gz",
+        "fq2_d1": "ficusphila_HiC_rep1_R2.fastq.gz",
+        "fq1_d2": "ficusphila_HiC_rep2_R1.fastq.gz",
+        "fq2_d2": "ficusphila_HiC_rep2_R2.fastq.gz",
+        "genome": "dfic_muller_o.fasta",
+        "matrix_filter_min": "-2",
+        "matrix_filter_max": "2",
+        "hal": "Dficusphila"
+    },
+    "dsim":{
+        "fq1_d1": "simulans_HiC_rep1_R1.fastq.gz",
+        "fq2_d1": "simulans_HiC_rep1_R2.fastq.gz",
+        "fq1_d2": "simulans_HiC_rep2_R1.fastq.gz",
+        "fq2_d2": "simulans_HiC_rep2_R2.fastq.gz",
+        "genome": "dsim_muller_o.fasta",
+        "matrix_filter_min": "-2",
+        "matrix_filter_max": "2",
+        "hal": "Dsimulans",
+        "cut" : "5-7"
+    },
+    "dyak":{
+        "fq1_d1": "yakuba_HiC_rep1_R1.fastq.gz",
+        "fq2_d1": "yakuba_HiC_rep1_R2.fastq.gz",
+        "fq1_d2": "yakuba_HiC_rep2_R1.fastq.gz",
+        "fq2_d2": "yakuba_HiC_rep2_R2.fastq.gz",
+        "genome": "dyak_muller_o.fasta",
+        "matrix_filter_min": "-2",
+        "matrix_filter_max": "2",
+        "hal": "Dyakuba",
+        "cut" : "9-11"
+    },
+
+    "dmel":{
+        "fq1_d1": "25189_nuclei_S1_R1_001.fastq.gz",
+        "fq2_d1": "25189_nuclei_S1_R2_001.fastq.gz",
+        "fq1_d2": "25189_nuclei_S2_R1_001.fastq.gz",
+        "fq2_d2": "25189_nuclei_S2_R2_001.fastq.gz",
+        "genome": "dmel-all-chromosome-r6.22_extract_ABCDEF_renamed.fasta",
+        "matrix_filter_min": "-2",
+        "matrix_filter_max": "2",
+        "hal": "Dmelanogaster",
+        "cut" : "1-3"
+    }
+}
+

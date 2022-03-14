@@ -1,0 +1,252 @@
+import os
+import numpy as np
+import scipy as sp
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import pandas as pd
+import scipy.stats as ss
+import statistics
+import seaborn as sns
+from itertools import permutations
+import subprocess as sb
+from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+import os
+from Bio.Align.Applications import ClustalwCommandline
+from Bio import AlignIO
+from Bio import Phylo
+from Bio.Phylo.Applications import PhymlCommandline
+from Bio.Phylo.TreeConstruction import DistanceCalculator
+import json
+configfile: "drosophila.json"
+clustalw_exe = "/home/nt365/anaconda3/bin/clustalw2"    
+
+
+fastas = []
+for line in open("/scratch/nt365/drosophila_orthofinder_seqs/primary_transcripts/OrthoFinder/Results_May03_1/SingleCopyOrthologous_GeneList.tsv", "r"):
+    l = line.split()
+    fastas.append(l[0])
+
+rule all:
+    input:
+        #expand("twobit/{sp}.2bit", sp = config["species"]),
+        #expand("twobit_new/{sp}/Muller_{E}.split.2bit", sp = config["species"], E = {"A","B","C","D","E","F"}),
+        #expand("twobit/{sp}.chromInfo", sp = config["species"]),
+        #expand("twobit_new/{sp}/Muller_{E}.2bit", sp = config["species"], E = {"A","B","C","D","E","F"}),
+        #expand("twobit_new/{sp}/Muller_{E}.split.chromInfo", sp = config["species"], E = {"A","B","C","D","E","F"}),
+        #expand("my_genomes/{sp}/Muller_{E}.split.fa", sp = config["species"], E = {"A","B","C","D","E","F"}),
+        #expand("my_genomes/{sp}/Muller_{E}.lft", sp = config["species"], E = {"A","B","C","D","E","F"}),
+        #expand("psl/{sp}/Muller_{E}.split.psl", sp = config["species"], E = {"A","B","C","D","E","F"} ),
+        #expand("new_psl/{sp}/Muller_{E}.psl", sp = config["species"], E = {"A","B","C","D","E","F"} ),
+        #expand("chain/{sp}/Muller_{E}.chain", sp = config["species"], E = {"A","B","C","D","E","F"}),
+        #expand("chainMerge_{sp}/Muller_{E}/all.sorted.chain", sp = config["species"], E = {"A","B","C","D","E","F"}),
+        #expand("chainMerge_{sp}/Muller_{E}/net/all.net", sp = config["species"], E = {"A","B","C","D","E","F"}),
+        #expand("liftover/{sp}/Muller_{E}.liftOver", sp = config["species"], E = {"A","B","C","D","E","F"}),
+        #expand("my_gffs/{sp}/Muller_{E}.gff", sp = config["species"], E = {"A","B","C","D","E","F"}),
+        #expand("beds/{sp}/Muller_{E}.gff", sp = config["species"], E = {"A","B","C","D","E","F"}),
+        #expand("my_gffs/{sp}/allME_merged.gff", sp = config["species"]),
+        #expand("orthoseqs_fasta/{sp}/orthoseqs.gff", sp = config["species"]),
+        #expand("orthoseqs_fasta/{sp}/orthoseqs_ID.gff",  sp = config["species"]),
+        #expand("orthoseqs_fasta/{sp}/orthoseqs_ID.bed", sp = config["species"]),
+        #expand("orthoseqs_fasta/{sp}/nonstop/orthoseqs.fasta", sp = config["species"]),
+
+rule twobit:
+    params:
+    input:
+        fna = lambda wildcards: os.path.join(config["fna_path"], config[wildcards.sp]["fna"]),
+    output:
+        twobit_ref = "twobit/{sp}.2bit",
+        twobit_ref_info = "twobit/{sp}.chromInfo",
+    run:
+        shell(
+            """faToTwoBit {input.fna} {output.twobit_ref}""")
+        shell(
+            """twoBitInfo {output.twobit_ref} {output.twobit_ref_info}""")
+
+rule split:
+    params:
+        split_size = "5000",
+        sp = "my_genomes/{sp}/Muller_{E}.split",
+        lf = "my_genomes/{sp}/Muller_{E}.lft",
+    input:
+        fa = "my_genomes/{sp}/Muller_{E}.fasta",
+    output:
+        splits = "my_genomes/{sp}/Muller_{E}.split.fa",
+        lift = "my_genomes/{sp}/Muller_{E}.lft",
+    run:
+        shell(
+            """faSplit size {input.fa} {params.split_size} {params.sp} -oneFile -lift={params.lf}""")
+
+rule twobit_mg:
+    params:
+    input:
+        fa = "my_genomes/{sp}/Muller_{E}.fasta",
+    output:
+        twobit_my_genome = "twobit_new/{sp}/Muller_{E}.2bit",
+        twobit_my_genome_info = "twobit_new/{sp}/Muller_{E}.chromInfo",
+    run:
+        shell(
+            """faToTwoBit {input.fa} {output.twobit_my_genome}""")
+        shell(
+            """twoBitInfo {output.twobit_my_genome} {output.twobit_my_genome_info}""")
+
+rule twobit_split:
+    params:
+    input:
+        fa = "my_genomes/{sp}/Muller_{E}.split.fa",
+    output:
+        twobit_my_genome = "twobit_new/{sp}/Muller_{E}.split.2bit",
+        twobit_my_genome_info = "twobit_new/{sp}/Muller_{E}.split.chromInfo",
+    run:
+        shell(
+            """faToTwoBit {input.fa} {output.twobit_my_genome}""")
+        shell(
+            """twoBitInfo {output.twobit_my_genome} {output.twobit_my_genome_info}""")
+
+    
+
+rule blat:
+    params:
+    input:
+        twobit = rules.twobit.output.twobit_ref,
+        my_genome = "my_genomes/{sp}/Muller_{E}.split.fa",
+    output:
+        psl = "psl/{sp}/Muller_{E}.split.psl"
+    shell:
+        """blat {input.twobit} {input.my_genome} {output.psl} -tileSize=11 -minScore=30 -minIdentity=98 -fastMap"""
+        #"""blat {input.twobit} {input.my_genome} {output.psl} -tileSize=12 -minScore=100 -minIdentity=90 -fastMap"""
+
+rule liftup:
+    params:
+    input:
+        psl = "psl/{sp}/Muller_{E}.split.psl",
+        lift = rules.split.output.lift,
+    output:
+        new_psl = "new_psl/{sp}/Muller_{E}.psl"
+    shell:
+        """liftUp -pslQ {output.new_psl} {input.lift} warn {input.psl}"""
+
+rule chain_1:
+    params:
+    input:
+        psl = rules.liftup.output.new_psl,
+        twobit = rules.twobit.output.twobit_ref,
+        twobit_n = "twobit_new/{sp}/Muller_{E}.2bit",
+    output:
+        chain = "chain/{sp}/Muller_{E}.chain"
+    shell:
+        """axtChain -linearGap=medium -psl {input.psl} {input.twobit} {input.twobit_n} {output.chain}"""
+
+rule chain_merge:
+    params:
+        dir = "chainMerge_{sp}/Muller_{E}"
+    input:
+        chain = rules.chain_1.output.chain
+    output:
+        chain = "chainMerge_{sp}/Muller_{E}/all.chain",
+        chain_sorted = "chainMerge_{sp}/Muller_{E}/all.sorted.chain",
+    run:
+        shell(
+            """chainMergeSort {input.chain} | chainSplit {params.dir} stdin -lump=50""")
+        shell(
+            """cat {params.dir}/*.chain > {output.chain}""")
+        shell(
+            """chainSort {output.chain} {output.chain_sorted}""")
+
+rule chain_net:
+    params:
+        dir = "chainMerge_{sp}/Muller_{E}/net/dev/null"
+    input:
+        chain_sorted = rules.chain_merge.output.chain_sorted,
+        twobit_ref_info = "twobit/{sp}.chromInfo",
+        twobit_my_genome_info = "twobit_new/{sp}/Muller_{E}.chromInfo",
+    output:
+        net = "chainMerge_{sp}/Muller_{E}/net/all.net",
+    shell:
+        """chainNet {input.chain_sorted} {input.twobit_ref_info} {input.twobit_my_genome_info} {output.net} /dev/null"""
+
+rule liftover:
+    params:
+        dir = "chainMerge_{sp}/Muller_{E}/net/dev/null"
+    input:
+        net = rules.chain_net.output.net,
+        all = rules.chain_merge.output.chain,
+    output:
+        lo = "liftover/{sp}/Muller_{E}.liftOver",
+    shell:
+        """netChainSubset {input.net} {input.all} {output.lo}"""
+        
+rule crossmap:
+    params:
+        dir = "chainMerge_{sp}/Muller_{E}/net/dev/null"
+    input:
+        lo = rules.liftover.output.lo,
+       #gff = "gff/Dsim_orthoseqs.gff",
+        gff = lambda wildcards: os.path.join(config["gff_path"], config[wildcards.sp]["gff"]),
+    output:
+        gff = "my_gffs/{sp}/Muller_{E}.gff",
+    conda: 
+         "envs/crossmap.yml"
+    shell:
+        """CrossMap.py gff {input.lo} {input.gff} {output.gff}"""
+        
+rule gff_to_bed:
+    params:
+        dir = "chainMerge_{sp}/Muller_{E}/net/dev/null"
+    input:
+        gff = rules.crossmap.output.gff,
+    output:
+        bed = "beds/{sp}/Muller_{E}.gff"
+    conda: 
+         "envs/crossmap.yml"
+    shell:
+        """gff2bed < {input.gff} > {output.bed}"""
+
+
+rule concat:
+    params:
+        gff = "my_gffs/{sp}/*.gff"
+    input:
+    output:
+        gff = "my_gffs/{sp}/allME_merged.gff",
+    conda: 
+         "envs/crossmap.yml"
+    shell:
+        """cat {params.gff}| gffread - --tlf --merge -F > {output.gff}"""
+ 
+
+#to make sso file: grep -f Orthogroups/Orthogroups_SingleCopyOrthologues.txt Orthogroups/Orthogroups.tsv > SingleCopyOrthologous_GeneList.tsv
+#for dyak had to run the following likely dueto trailing whitespace: cut -f 12 /scratch/nt365/drosophila_orthofinder_seqs/primary_transcripts/OrthoFinder/Results_May03_1/SingleCopyOrthologous_GeneList.tsv | cut -c 1-14 | grep -f - my_gffs/dyak/allME_merged.gff > orthoseqs_fasta/dyak/orthoseqs.gff
+rule find:
+    params:
+        col = lambda wildcards: config[wildcards.sp]["cut"],
+    input:
+        bed = "my_gffs/{sp}/allME_merged.gff",
+        sso = "/scratch/nt365/drosophila_orthofinder_seqs/primary_transcripts/OrthoFinder/Results_May03_1/SingleCopyOrthologous_GeneList.tsv"
+    output:
+        ogg = "orthoseqs_fasta/{sp}/orthoseqs.gff"
+    conda: 
+         "envs/crossmap.yml"
+    shell:
+        """cut -f {params.col} {input.sso} | grep -f - {input.bed} > {output.ogg}"""
+
+rule replace:
+    params:
+    input:
+        gff = "orthoseqs_fasta/{sp}/orthoseqs.gff"
+    output:
+        id = "orthoseqs_fasta/{sp}/orthoseqs_ID.gff"
+    shell:
+        """sed -r 's/ID=//g' {input.gff} | sed -r 's/CDS_Name/ID/g'> {output.id}"""
+   
+rule gff_to_bed_2:
+    input:
+        gff2 = "orthoseqs_fasta/{sp}/orthoseqs_ID.gff"
+    output:
+        bed2 = "orthoseqs_fasta/{sp}/orthoseqs_ID.bed"
+    conda: 
+         "envs/crossmap.yml"
+    shell:
+        """gff2bed < {input.gff2} > {output.bed2}"""        
+#NOTE: for dtri I ran gff_to_bed_2 on orthoseqs.gff to make orthoseqs.bed. Then created fasta from orthoseqs.bed. Since the ID scheme was different since we annotated ourselves. 

@@ -1,0 +1,174 @@
+import os
+import numpy as np
+import scipy as sp
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import pandas as pd
+from scipy import stats
+import statistics
+import seaborn as sns
+from itertools import permutations
+import subprocess as sb
+configfile: "drosophila.json"
+
+rule all:
+    input:
+        #expand("streme/all_boundaries_with_control_{sample}_byn/", sample = config["species"]),
+        #"streme/acc_v_nacc/", 
+        #expand("streme/all_boundaries_control_{sample}/", sample = config["species"]),
+        #expand("streme/all_boundaries_control_{sample}/streme_{sample}.txt", sample = config["species"]),
+        #expand("ame/all_boundaries_with_control_{sample}_M1BP/", sample = config["species"]),
+        expand("ame/all_boundaries_with_control_{sample}_beaf32/", sample = config["species"]),
+        expand("ame/all_boundaries_with_control_{sample}_CTCF/", sample = config["species"]),
+        expand("ame/all_boundaries_with_control_{sample}_SuHW/", sample = config["species"]),
+        expand("ame/all_boundaries_with_control_{sample}_ZIPIC/", sample = config["species"]),
+        expand("enrichment/{sample}_{motif}.txt", sample = config["species"], motif = ["beaf32", "CTCF", "M1BP", "ZIPIC", "SuHW"]),
+        
+
+rule get_fasta:
+    params:
+    input:
+        f = "references_indexed/{sample}",
+        b = "merged_boundaries/{sample}_merge_mid5000",
+    output:
+        bs = "boundary_sequences/{sample}.fasta",
+    shell:
+        """bedtools getfasta -fi {input.f} -bed {input.b} > {output.bs}"""
+
+rule get_fasta_control:
+    params:
+    input:
+        f = "references_indexed/{sample}",
+        b = "TADS/replicates/{sample}_d1_score.bedgraph",
+    output:
+        bs = "control_sequences/{sample}.fasta"
+    shell:
+        """bedtools getfasta -fi {input.f} -bed {input.b} > {output.bs}"""
+
+rule ame_beaf:
+    params:
+        s = "beaf32"
+    input:
+        s = "boundary_sequences/{sample}.fasta",
+        c = "control_sequences/{sample}.fasta"
+    output:
+        o = "ame/all_boundaries_with_control_{sample}_beaf32/"
+    shell:
+        """ame --o {output.o} --control {input.c} {input.s} {params.s}"""
+
+rule ame_m1bp:
+    params:
+        s = "M1BP"
+    input:
+        s = "boundary_sequences/{sample}.fasta",
+        c = "control_sequences/{sample}.fasta"
+    output:
+        o = "ame/all_boundaries_with_control_{sample}_M1BP/"
+    shell:
+        """ame --o {output.o} --control {input.c} {input.s} {params.s}"""
+
+rule ame_zipic:
+    params:
+        s = "ZIPIC"
+    input:
+        s = "boundary_sequences/{sample}.fasta",
+        c = "control_sequences/{sample}.fasta"
+    output:
+        o = "ame/all_boundaries_with_control_{sample}_ZIPIC/"
+    shell:
+        """ame --o {output.o} --control {input.c} {input.s} {params.s}"""
+
+rule ame_ctcf:
+    params:
+        s = "CTCF.meme"
+    input:
+        s = "boundary_sequences/{sample}.fasta",
+        c = "control_sequences/{sample}.fasta"
+    output:
+        o = "ame/all_boundaries_with_control_{sample}_CTCF/"
+    shell:
+        """ame --o {output.o} --control {input.c} {input.s} {params.s}"""
+
+rule ame_suhw:
+    params:
+        s = "SuHW.meme"
+    input:
+        s = "boundary_sequences/{sample}.fasta",
+        c = "control_sequences/{sample}.fasta"
+    output:
+        o = "ame/all_boundaries_with_control_{sample}_SuHW/"
+    shell:
+        """ame --o {output.o} --control {input.c} {input.s} {params.s}"""
+
+rule ame_byn:
+    params:
+        s = "ame/byn.meme"
+    input:
+        s = "boundary_sequences/{sample}.fasta",
+        c = "control_sequences/{sample}.fasta"
+    output:
+        o = "ame/all_boundaries_with_control_{sample}_byn/"
+    shell:
+        """ame --o {output.o} --control {input.c} {input.s} {params.s}"""
+
+
+rule streme:
+    params:
+        s = "{sample}"
+    input:
+        s = "boundary_sequences/{sample}.fasta",
+        c = "control_sequences/{sample}.fasta"
+    output:
+        o = "streme/all_boundaries_control_{sample}/"
+    shell:
+        """rm -rf {output.o}; streme --o {output.o} --n {input.c} --p {input.s}"""
+        
+rule streme_acc:
+    input:
+        s = "boundary_sequences/acc.fasta",
+        c = "boundary_sequences/n_acc.fasta"
+    output:
+        o = "streme/acc_v_nacc/"
+    shell:
+        """rm -rf {output.o}; streme --o {output.o} --n {input.c} --p {input.s}"""
+        
+        
+rule streme_format:
+    params:
+        s = "{sample}"
+    input:
+        s = "streme/all_boundaries_control_{sample}/streme.txt"
+    output:
+        o = "streme/all_boundaries_control_{sample}/streme_{sample}.txt"
+    shell:
+        """cat {input.s} | sed '1,29d' | sed -n -e :a -e '1,9!{{P;N;D;}};N;ba' | grep -v letter | sed -r 's/MOTIF/>{params.s}/g' > {output.o}"""
+        
+rule ame_enrichment:
+    params:
+        p = "{sample}"
+    input:
+        a = "ame/all_boundaries_with_control_{sample}_{motif}/ame.tsv",
+        bs = "boundary_sequences/{sample}.fasta",
+        cs = "control_sequences/{sample}.fasta"
+    output:
+        o = "enrichment/{sample}_{motif}.txt"
+    run:
+        f = open(output.o, "w")
+        f.write(params.p + "\t")
+        f.close()
+        shell(
+            """cat {input.a} | cut -f 2 | awk 'NR == 2' | awk 'BEGIN {{ ORS=" " }}; {{print $1}}' >> {output.o}""")
+        shell(
+            """cat {input.a} | cut -f 14 | awk 'NR == 2' | awk 'BEGIN {{ ORS=" " }}; {{print $1+1}}' >> {output.o}""")
+        shell(
+            """cat {input.bs} | grep ">" | wc -l | awk 'BEGIN {{ ORS=" " }}; {{print $1+1}}' >> {output.o}""")
+        shell(
+            """cat {input.a} |  cut -f 16 | awk 'NR == 2' | awk 'BEGIN {{ ORS=" " }}; {{print $1+1}}' >> {output.o}""")
+        shell(
+            """cat {input.cs} | grep ">" | wc -l | awk 'BEGIN {{ ORS=" " }}; {{print $1+1}}' >> {output.o}""")
+        shell(
+            """cat {input.a} | cut -f 14 | awk 'NR == 2' | awk 'BEGIN {{ ORS=" " }}; {{print $1}}' >> {output.o}""")
+        shell(
+            """cat {input.a} | cut -f 6 | awk 'NR == 2' | awk 'BEGIN {{ ORS=" " }}; {{print $1}}' >> {output.o}""")
+        shell(
+            """cat {output} | awk '{{a=$3/$4;b=$5/$6;c=a/b;print $0 "\t"c}}' >> {output.o}""")

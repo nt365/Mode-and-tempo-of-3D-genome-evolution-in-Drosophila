@@ -1,0 +1,325 @@
+import os
+import numpy as np
+import scipy as sp
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import pandas as pd
+from scipy import stats
+import statistics
+import seaborn as sns
+import scipy.stats as ss
+import math
+configfile: "chromatin_LOF.json"
+#configfile: "rank_LOF.json"
+java_path = "java -jar /home/nt365/pkg/Trimmomatic-0.39/trimmomatic-0.39.jar" 
+configfile: "drosophila.json"
+file = []
+for i in config["species"]:
+    file.append(str(i) + "_d1")
+    file.append(str(i) + "_d2")
+    
+def fastq(x):
+    for i in config["species"]:
+        fq1_d1 = os.path.join(config["fastq_path"], config[x]["fq1_d1"])
+        fq2_d1 = os.path.join(config["fastq_path"], config[x]["fq2_d1"])
+        fq1_d2 = os.path.join(config["fastq_path"], config[x]["fq1_d2"])
+        fq2_d2 = os.path.join(config["fastq_path"], config[x]["fq2_d2"]) 
+        return ([str(fq1_d1), str(fq2_d1), str(fq1_d2), str(fq2_d2)])
+
+rule all:
+    input:
+        #expand("trimmed/{sampleD}_{P}.fastq.gz", sampleD = file, P = ["1U", "2U", "1P", "2P"]),
+        #expand("hisat_indexed/{sample}", sample = config["species"]),
+        #expand("hisat_aligned/{sampleD}.sam", sampleD = file),
+        #expand("orthoseqs_fasta/{sample}/orthoseqs.gtf", sample = config["species"]),
+        #expand("hisat_aligned/{sample}_{d}.sorted.bam", sample = config["species"], d = ["d1", "d2"]),
+        #expand("tpm/{sample}_{d}.sorted_genes.out",sample = config["species"], d = ["d1", "d2"]),
+        #expand("htseq/{sample}_{D}.sam", sample = config["species"], D = ["d1", "d2"]),
+        expand("scatter/{sample}_spearman.txt", sample = config["species"]),
+        expand("count_means/{sample}.txt", sample = config["species"]),
+        #"ortho_summaries/all_ortho_data.txt",
+        "chromatin_gene_expression_LOF.txt",
+        "rank_gene_expression_LOF.txt"
+
+        
+    
+rule trimo:
+    params:
+        java = java_path,
+        prefix1 = "trimmed/{sample}_d1.fastq.gz",
+        prefix2 = "trimmed/{sample}_d2.fastq.gz"
+    input:
+        fqs = lambda wildcards: fastq(wildcards.sample)
+    output:
+        d11u = "trimmed/{sample}_{D}_1U.fastq.gz",
+        d11p = "trimmed/{sample}_{D}_1P.fastq.gz",
+        d12u = "trimmed/{sample}_{D}_2U.fastq.gz",
+        d12p = "trimmed/{sample}_{D}_2P.fastq.gz",
+    log:
+        log1 = "logs/trimmomatic/{sample}_d1.log",
+        log2 = "logs/trimmomatic/{sample}_d2.log",
+    run:
+        #if len(input.fqs) > 2:
+            shell(
+                """{params.java} PE {input.fqs[0]} {input.fqs[1]} -threads 28 -baseout {params.prefix1} ILLUMINACLIP:TruSeq3-PE.fa:2:30:10 LEADING:10 TRAILING:10 SLIDINGWINDOW:4:15 MINLEN:36 &> {log.log1}""")
+            shell(
+                """{params.java} PE {input.fqs[2]} {input.fqs[3]} -threads 28 -baseout {params.prefix2} ILLUMINACLIP:TruSeq3-PE.fa:2:30:10 LEADING:10 TRAILING:10 SLIDINGWINDOW:4:15 MINLEN:36 &> {log.log2}""")
+        #else:
+        #    shell(
+        #        """{params.java} PE {input.fqs[0]} {input.fqs[1]} -threads 28 -baseout {params.prefix1} ILLUMINACLIP:TruSeq3-PE.fa:2:30:10 LEADING:10 TRAILING:10 SLIDINGWINDOW:4:15 MINLEN:36 &> {log.log1}""")
+
+
+rule hisat_index:
+    input:
+        ref = lambda wildcards: os.path.join(config["ref_path"], config[wildcards.sample]["genome"])
+    output:
+        hr = "hisat_indexed/{sample}"
+    conda:
+        "envs/hisat.yml"
+    shell:
+        """hisat2-build {input.ref} {output.hr}"""
+        
+rule hisat_1:
+    params:
+        idx = "hisat_indexed/{sample}"
+    input:
+        r1_1p = "trimmed/{sample}_d1_1P.fastq.gz",
+        r1_2p = "trimmed/{sample}_d1_2P.fastq.gz",
+        r2_1p = "trimmed/{sample}_d2_1P.fastq.gz",
+        r2_2p = "trimmed/{sample}_d2_2P.fastq.gz",
+    output:
+        rep1 = "hisat_aligned/{sample}_d1.sam",
+    conda:
+        "envs/hisat.yml" 
+    shell:
+        """hisat2 --rna-strandness RF --dta --max-intronlen 50000 --no-unal -x {params.idx} -1 {input.r1_1p} -2 {input.r1_2p} > {output.rep1}"""
+        
+rule hisat_2:
+    params:
+        idx = "hisat_indexed/{sample}"
+    input:
+        r1_1p = "trimmed/{sample}_d1_1P.fastq.gz",
+        r1_2p = "trimmed/{sample}_d1_2P.fastq.gz",
+        r2_1p = "trimmed/{sample}_d2_1P.fastq.gz",
+        r2_2p = "trimmed/{sample}_d2_2P.fastq.gz",
+    output:
+        rep2 = "hisat_aligned/{sample}_d2.sam"
+    conda:
+        "envs/hisat.yml" 
+    shell:
+        """hisat2 --rna-strandness RF --dta --max-intronlen 50000 --no-unal -x {params.idx} -1 {input.r2_1p} -2 {input.r2_2p} > {output.rep2}"""
+        
+rule sam_to_bam_1:
+    params:
+    input:
+        sam = "hisat_aligned/{sample}_d1.sam",
+    output:
+        bam = "hisat_aligned/{sample}_d1.sorted.bam"
+    run:
+        shell(
+            """samtools view -S -b {input.sam} | samtools sort - > {output.bam}""")
+        shell(
+            """samtools index {output.bam}""")
+
+rule sam_to_bam_2:
+    params:
+    input:
+        sam = "hisat_aligned/{sample}_d2.sam"
+    output:
+        bam = "hisat_aligned/{sample}_d2.sorted.bam" 
+    run:
+        shell(
+            """samtools view -S -b {input.sam} | samtools sort - > {output.bam}""")
+        shell(
+            """samtools index {output.bam}""")
+
+rule gff_to_gtf:
+    params:
+    input:
+        gff = "orthoseqs_fasta/{sample}/orthoseqs.gff",
+        
+    output:
+        gff2 = "orthoseqs_fasta/{sample}/orthoseqs.gff.2",
+        gtf = "orthoseqs_fasta/{sample}/orthoseqs.gtf"
+    run:
+        shell(
+            """cp {input.gff} {output.gff2}""")
+        shell(
+            """sed -i 's/geneID=/gi=/g' {output.gff2}""")
+        
+        shell(
+            """sed -i 's/CDS_Name=/gene_id=/g' {output.gff2}""")
+        shell(
+            """sed -i 's/Name=/gene_id=/g' {output.gff2}""")
+        shell(
+            """gffread {output.gff2} -T -F -o {output.gtf}""")
+
+rule tpm_1:
+    params:
+        id = lambda wildcards: config[wildcards.sample]["id"],
+    input:
+        bam = "hisat_aligned/{sample}_d1.sorted.bam", 
+        gtf = "orthoseqs_fasta/{sample}/orthoseqs.gtf"
+    output:
+        u = "tpm/{sample}_d1.sorted_genes.uni",
+        e = "tpm/{sample}_d1.sorted_genes.ent",
+        o = "tpm/{sample}_d1.sorted_genes.out",
+    shell:
+        """cd tpm/; TPMCalculator -a -g ../{input.gtf} -b ../{input.bam}"""
+
+rule tpm_2:
+    params:
+        id = lambda wildcards: config[wildcards.sample]["id"],
+    input:
+        bam = "hisat_aligned/{sample}_d2.sorted.bam",
+        gtf = "orthoseqs_fasta/{sample}/orthoseqs.gtf"
+    output:
+        u = "tpm/{sample}_d2.sorted_genes.uni",
+        e = "tpm/{sample}_d2.sorted_genes.ent",
+        o = "tpm/{sample}_d2.sorted_genes.out",
+    shell:
+        """cd tpm/; TPMCalculator -a -g ../{input.gtf} -b ../{input.bam}"""
+        
+        
+rule scatter:
+    input:
+        d1 = "tpm/{sample}_d1.sorted_genes.out",
+        d2 = "tpm/{sample}_d2.sorted_genes.out"
+    output:
+        t = "scatter/{sample}_both_reps.txt",
+        s = "scatter/{sample}_spearman.txt",
+        m = "count_means/{sample}.txt",
+    run:
+        d = open(input.d1, "r")
+        s = open(output.s, "w")
+        t = open(output.t, "w")
+        av = open(output.m, "w")
+        n = list()
+        o = list()
+        next(d)
+        for line in d:
+            j = line.split()
+            f = open(input.d2, "r")
+            next(f)
+            for line in f:
+                i = line.split()
+                if j[0] != i[0]:
+                    continue
+                if j[0] == i[0]:
+                    m = []
+                    m.append(float(j[12]))
+                    m.append(float(i[12]))
+                    mn = statistics.mean(m)
+                    t.write(str(j[0]) + "\t" + str(j[12]) + "\t" + str(i[0]) + "\t" + str(i[12])+"\n")
+                    av.write(str(j[0]) + "\t" + str(mn) + "\n")
+                    n.append(float(j[12]))
+                    o.append(float(i[12]))
+
+        s.write(str(stats.spearmanr(n,o)))            
+        f.close()
+        d.close()
+        s.close()
+        t.close()
+        av.close()
+
+rule sort_orthos:
+    params:
+        dr = "count_means/",
+        os = "ortho_summaries/"
+    input:
+        os = "/projects/genetics/ellison_lab/nicole/drosophila_orthofinder_seqs/primary_transcripts/OrthoFinder/Results_May03_1/SingleCopyOrthologous_GeneList.tsv",
+    output:
+        l = "ortho_summaries/all_ortho_data.txt"
+    run:
+        orthos = open(input.os, "r")
+        f = open(output.l, "w")
+        id_count = {}
+        id_count_sub = {}
+        for file in os.listdir(params.dr):
+            if file.endswith(".txt"):
+                c = open(params.dr + file, "r")
+                id_count_sub[file[:-4]]= {}
+                for line in c:
+                    l = line.split()
+                    if l[0][0] != "_": 
+                        id_count[l[0]] = l[1]
+                        id_count_sub[file[:-4]][l[0]] = l[1]
+        for line in orthos:
+            l = line.split()
+            name = str(l[0] + ".txt")
+            f.write(name + "\t")
+            values = []
+            for i in l[1:]:
+                i2 = i.strip()
+                v = id_count.get(i2)
+                f.write(str(i) + "\t" + str(v) + "\t")
+                if str(v) != "None":
+                    values.append(float(v))
+            st = ss.describe(values)
+            if np.std(values) > 0:
+                sd = math.log2(np.std(values))
+            else:
+                sd = np.std(values)
+            f.write(str(st.mean) + "\t" + str(sd) + "\n")
+        f.close()
+
+rule chromatin:
+    params:
+    input:
+        i = "ortho_summaries/all_ortho_data.txt"
+    output:
+        o = "chromatin_gene_expression.txt"
+    run:
+        f = open(input.i, "r")
+        o = open(output.o, "w")
+        for line in f:
+            l = line.split()
+            if l[0][0:9] in config["BLU"]:
+                o.write(l[0][0:9] + "\t" + "BLUE" + "\t" + l[23]  +"\t" + l[24]+ "\n")
+            if l[0][0:9] in config["BLA"]:
+                o.write(l[0][0:9] + "\t" + "BLACK" + "\t" + l[23]  +"\t" + l[24]+ "\n")
+            if l[0][0:9] in config["RED"]:
+                o.write(l[0][0:9] + "\t" + "RED" + "\t" + l[23]  +"\t" + l[24]+ "\n")
+            if l[0][0:9] in config["GRE"]:
+                o.write(l[0][0:9] + "\t" + "GREEN" + "\t" + l[23]  +"\t" + l[24]+ "\n")
+            if l[0][0:9] in config["YEL"]:
+                o.write(l[0][0:9] + "\t" + "YELLOW" + "\t" + l[23]  +"\t" + l[24]+ "\n")
+        o.close()
+        
+rule rank:
+    params:
+    input:
+        i = "ortho_summaries/all_ortho_data.txt"
+    output:
+        o = "rank_gene_expression_LOF.txt"
+    run:
+        f = open(input.i, "r")
+        o = open(output.o, "w")
+        for line in f:
+            l = line.split()
+            if l[0][0:9] in config["r1"]:
+                o.write(l[0][0:9] + "\t" + "r1" + "\t" + l[23]  +"\t" + l[24]+ "\n")
+            if l[0][0:9] in config["r2"]:
+                o.write(l[0][0:9] + "\t" + "r2" + "\t" + l[23]  +"\t" + l[24]+ "\n")
+            if l[0][0:9] in config["r3"]:
+                o.write(l[0][0:9] + "\t" + "r3" + "\t" + l[23]  +"\t" + l[24]+ "\n")
+            if l[0][0:9] in config["r4"]:
+                o.write(l[0][0:9] + "\t" + "r4" + "\t" + l[23]  +"\t" + l[24]+ "\n")
+            if l[0][0:9] in config["r5"]:
+                o.write(l[0][0:9] + "\t" + "r5" + "\t" + l[23]  +"\t" + l[24]+ "\n")
+            if l[0][0:9] in config["r5"]:
+                o.write(l[0][0:9] + "\t" + "r6" + "\t" + l[23]  +"\t" + l[24]+ "\n")
+            if l[0][0:9] in config["r6"]:
+                o.write(l[0][0:9] + "\t" + "r5" + "\t" + l[23]  +"\t" + l[24]+ "\n")
+            if l[0][0:9] in config["r7"]:
+                o.write(l[0][0:9] + "\t" + "r7" + "\t" + l[23]  +"\t" + l[24]+ "\n")      
+            if l[0][0:9] in config["r8"]:
+                o.write(l[0][0:9] + "\t" + "r8" + "\t" + l[23]  +"\t" + l[24]+ "\n")     
+            if l[0][0:9] in config["r9"]:
+                o.write(l[0][0:9] + "\t" + "r9" + "\t" + l[23]  +"\t" + l[24]+ "\n")     
+            if l[0][0:9] in config["r10"]:
+                o.write(l[0][0:9] + "\t" + "r10" + "\t" + l[23]  +"\t" + l[24]+ "\n")    
+            if l[0][0:9] in config["r11"]:
+                o.write(l[0][0:9] + "\t" + "r11" + "\t" + l[23]  +"\t" + l[24]+ "\n")
+        o.close()
+        

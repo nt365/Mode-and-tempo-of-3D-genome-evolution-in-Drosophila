@@ -1,0 +1,760 @@
+import os
+import numpy as np
+import scipy as sp
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import pandas as pd
+from scipy import stats
+import statistics
+import seaborn as sns
+from itertools import permutations
+import subprocess as sb
+configfile: "drosophila.json"
+combos = []
+for i in config["species"]:
+    for j in config["species"]:
+        if i != j:
+            a = (str(i) + "_" + str(j))
+            b = (str(j) + "_" + str(i))
+            combos.append(a)
+            combos.append(b)
+combo_f1 = []
+for i in config["species"]:
+    for j in config["species"]:
+        if i != j:
+            a = (str(i) + "_" + str(j) + "_" + str(i))
+            combo_f1.append(a)
+combo_f2 = []
+for i in config["d2"]:
+    for j in config["d2"]:
+        if i != j:
+            a = (str(i) + "_" + str(j) + "_" + str(j))
+            combo_f2.append(a)
+file = []
+for i in config["d2"]:
+    file.append(str(i) + "_d1")
+    file.append(str(i) + "_d2")
+for i in config["nd"]:
+    file.append(str(i) + "_d1")
+
+def fastq(x):
+    sample = config[x]
+    if x not in config["nd"]:
+        fq1_d1 = os.path.join(config["fastq_path"], config[x]["fq1_d1"])
+        fq2_d1 = os.path.join(config["fastq_path"], config[x]["fq2_d1"])
+        fq1_d2 = os.path.join(config["fastq_path"], config[x]["fq1_d2"])
+        fq2_d2 = os.path.join(config["fastq_path"], config[x]["fq2_d2"]) 
+        return ([str(fq1_d1), str(fq2_d1), str(fq1_d2), str(fq2_d2)])
+    else:
+        fq1_d1 = os.path.join(config["fastq_path"], config[x]["fq1_d1"])
+        fq2_d1 = os.path.join(config["fastq_path"], config[x]["fq2_d1"])
+        return ([str(fq1_d1), str(fq2_d1)])
+        
+def scatter_f1(x):
+    sample = config[x]
+    if x not in config["nd"]:
+        return ("TADS/" + str(x) + "_d1_boundaries.bed")
+def scatter_f2(x):
+    sample = config[x]
+    if x not in config["nd"]:
+        return ("TADS/" + str(x) + "_d2_boundaries.bed")
+        
+def reps(x):
+    sample = config[x]
+    if x in config["nd"]:
+        return (["TADS/" + str(x) + "_d1_boundaries.bed"])
+    else:
+        return (["TADS/" + str(x) + "_d1_boundaries.bed", "TADS/" + str(x) + "_d2_boundaries.bed"])
+def concat(x,y):
+    sample = config[x]
+    if y in config["nd"]:
+        return (["merged_boundaries/" + str(y) + "_merge_mid5000"])
+    else:
+        return (["merged_boundaries/" + str(y) + "_merge_mid5000", "merged_boundaries/" + str(y) + "_lc"])
+def domains(x):
+    sample = config[x]
+    if x in config["nd"]:
+        return (["TADS/" + str(x) + "_d1_domains.bed"])
+    else:
+        return (["TADS/" + str(x) + "_d1_domains.bed", "TADS/" + str(x) + "_d2_domains.bed"])
+def summary(x,y):
+    if y in config["nd"]:
+        return (["boundary_summaries/" + str(x) + "_" + str(y) + "_hc_conserved_boundaries"])
+    else:
+        return (["boundary_summaries/" + str(x) + "_" + str(y) + "_hc_conserved_boundaries", "boundary_summaries/" + str(x) + "_" + str(y) + "_lc_conserved_boundaries"])
+bwa_path = "bwa"
+samtools_path = "samtools"
+perl_path = "perl"
+java_path = "java -jar /home/nt365/pkg/Trimmomatic-0.39/trimmomatic-0.39.jar" 
+hic_bm_path = "hicBuildMatrix"
+hic_cm_path = "hicCorrectMatrix"
+hal_path = "halLiftover"
+hic_sm_path = "hicSumMatrices"
+
+
+rule all:
+        input:
+            #expand("references_indexed/{sample}.{ext}", sample = config["species"], ext = ["fai","amb","ann","bwt","pac","sa"]),
+            #expand("trimmed_log/{sampleD}_{P}.fastq.gz", sampleD = file, P = ["1U", "2U", "1P", "2P"]),
+            #expand("bams/{sampleD}.R1.bam", sampleD = file),
+            #expand("hicexplorer/matrix/{sampleD}.h5", sampleD = file),
+            #expand("hicexplorer/corrected_matrix/{sampleD}_hic_corrected_matrix.h5", sampleD = file),
+            #expand("TADS/{sampleD}_score.bedgraph", sampleD = file),
+            #expand("scatter/{sample}_spearman.txt", sample = config["species"]),
+            #expand("merged_domains/{sample}_domains_hc_sizes.bed"), sample = config["species"]),
+            #expand("domain_hal/{combos}/q00", combos = combos),
+            #expand("domain_hal/{combos}/q00.{ext}", combos = combos, ext = ["bed","bed_merge","bed_merge_5000", "bed_merge_5000_group"]),
+            #expand("domain_hal/{combos}/expand.done", combos = combos),
+            #expand("domain_hal/{combos}/domain_group.done", combos = combos),
+            #expand("domain_hal/{combos}/domain_hal.done", combos = combos),
+            #expand("domain_hal/{combos}/domain_filter.done", combos = combos),
+            #expand("domain_hal/{combos}/domain_sort.done", combos = combos),
+            #expand("domain_hal/{combos}/liftover_domains"), combos = combos),
+            #expand("domain_hal/{combos}/continuous_coords", combos=combos),
+            #expand("domain_summaries/{sample}.orth_orIDs.txt",sample=combos),
+            #expand("domain_summaries/{combos}.domain_summary.txt", combos=combos),
+            "domain_stats.txt",
+            expand("boundary_replicates/{sample}_summary.txt", sample = config["species"]),
+            expand("domain_replicates/{sample}_summary.txt", sample = config["species"]),
+            #expand("merged_boundaries/{sample}_merge_mid5000", sample = config["species"]),
+            #expand("boundary_hal/{samples}.hal", samples = combos),
+            #expand("boundary_summaries/{samples}.boundary_summary.txt" , samples = combos),
+            "boundary_stats.txt",
+            #expand("boundary_summaries/new/5000/{sample}_hc_conserved_boundaries",  sample = combos),
+            #expand("boundary_summaries/new/5000/{sample}_lc_conserved_boundaries",  sample = combos),
+            #expand("boundary_summaries/new/{samples}_c.bed", samples = combos), 
+            #expand("boundary_summaries/new/{samples}_c2.bed", samples = combos), 
+            #expand("boundary_summaries/new/{samples}.bed", samples = combos), 
+
+rule prepare_reference:
+    params: 
+        samtools = samtools_path,
+        bwa = bwa_path
+    input:
+        ref = lambda wildcards: os.path.join(config["ref_path"], config[wildcards.sample]["genome"])
+    output:
+        fa =  "references_indexed/{sample}",
+        fai = "references_indexed/{sample}.fai",
+        amb = "references_indexed/{sample}.amb",
+        ann = "references_indexed/{sample}.ann",
+        bwt = "references_indexed/{sample}.bwt",
+        pac = "references_indexed/{sample}.pac",
+        sa = "references_indexed/{sample}.sa",
+    run:
+        shell(
+            "ln -s ../{} {{output.fa}} && touch -h {{output.fa}}".format(input.ref))
+        shell(
+            "{params.samtools} faidx {output.fa}")
+        shell(
+            "{params.bwa} index {output.fa}")
+
+rule trimomatic:
+    params:
+        java = java_path,
+        prefix1 = "trimmed_log/{sample}_d1.fastq.gz",
+        prefix2 = "trimmed_log/{sample}_d2.fastq.gz"
+    input:
+        fqs = lambda wildcards: fastq(wildcards.sample)
+    output:
+        d11u = "trimmed_log/{sample}_{D}_1U.fastq.gz",
+        d11p = "trimmed_log/{sample}_{D}_1P.fastq.gz",
+        d12u = "trimmed_log/{sample}_{D}_2U.fastq.gz",
+        d12p = "trimmed_log/{sample}_{D}_2P.fastq.gz",
+    log:
+        log1 = "logs/trimmomatic/{sample}_d1.log",
+        log2 = "logs/trimmomatic/{sample}_d2.log",
+    run:
+        if len(input.fqs) > 2:
+            shell(
+                """{params.java} PE {input.fqs[0]} {input.fqs[1]} -threads 28 -baseout {params.prefix1} ILLUMINACLIP:TruSeq3-PE.fa:2:30:10 LEADING:10 TRAILING:10 SLIDINGWINDOW:4:15 MINLEN:36 &> {log.log1}""")
+            shell(
+                """{params.java} PE {input.fqs[2]} {input.fqs[3]} -threads 28 -baseout {params.prefix2} ILLUMINACLIP:TruSeq3-PE.fa:2:30:10 LEADING:10 TRAILING:10 SLIDINGWINDOW:4:15 MINLEN:36 &> {log.log2}""")
+        else:
+            shell(
+                """{params.java} PE {input.fqs[0]} {input.fqs[1]} -threads 28 -baseout {params.prefix1} ILLUMINACLIP:TruSeq3-PE.fa:2:30:10 LEADING:10 TRAILING:10 SLIDINGWINDOW:4:15 MINLEN:36 &> {log.log1}""")
+
+rule split:
+    params:
+        bwa = bwa_path,
+        perl = perl_path,
+        path = "./split",
+        prefix = "{sample}_{D}",
+    input:
+        f1u = "trimmed_log/{sample}_{D}_1U.fastq.gz",
+        f1p = "trimmed_log/{sample}_{D}_1P.fastq.gz",
+        f2u = "trimmed_log/{sample}_{D}_2U.fastq.gz",
+        f2p = "trimmed_log/{sample}_{D}_2P.fastq.gz",        
+    output:
+        s1 = "split/split_{sample}_{D}.P1.fa",
+        s2 = "split/split_{sample}_{D}.P2.fa",
+    run:
+        shell(
+            """{params.perl} combined_cut_nt2.pl {input.f1p} {input.f2p} {input.f1u} {input.f2u} {params.path} {params.prefix}""")
+
+rule align:
+    params:
+        bwa = bwa_path
+    input:
+        s1 = "split/split_{sample}_{D}.P1.fa",
+        s2 = "split/split_{sample}_{D}.P2.fa",
+        ref = "references_indexed/{sample}",
+    output: 
+        bamR1 = "bams/{sample}_{D}.R1.bam",
+        bamR2 = "bams/{sample}_{D}.R2.bam",
+    log:
+        logR1 = "logs/align/mate_{sample}_{D}.R1.log",
+        logR2 = "logs/align/mate_{sample}_{D}.R2.log",
+    run:
+        shell(
+            "{params.bwa} mem -t 28 -A1 -B4 -E50 -L0 {input.ref} {input.s1} 2>{log.logR1} | samtools view -Shb - > {output.bamR1}")
+        shell(
+            "{params.bwa} mem -t 28 -A1 -B4 -E50 -L0 {input.ref} {input.s2} 2>{log.logR2} | samtools view -Shb - > {output.bamR2}")
+
+rule build_matrix:
+    params:
+        binsize = "5000",
+        minmapqual = "20",
+        hicBM = hic_bm_path
+    input:
+        bamR1 = "bams/{sample}_{D}.R1.bam",
+        bamR2 = "bams/{sample}_{D}.R2.bam",
+    output:
+        bamout = "hicexplorer/matrix/{sample}_{D}.hicMat.bam",
+        matrix = "hicexplorer/matrix/{sample}_{D}.h5",
+        qc = "hicexplorer/matrix/{sample}_{D}_hicQC",
+    log:
+        log = "logs/hicexplorer/{sample}_{D}.buildmatrix.log"
+    shell:
+        "{params.hicBM} --samFiles {input.bamR1} {input.bamR2} --binSize {params.binsize} --outBam {output.bamout} --minMappingQuality {params.minmapqual} -o {output.matrix} --QCfolder {output.qc} >& {log.log}"
+
+
+rule correct_matrix:
+    params:
+        binsize = "5000",
+        hicCM = hic_cm_path,
+        filterT_min = lambda wildcards: config[wildcards.sample]["matrix_filter_min"],
+        filterT_max = lambda wildcards: config[wildcards.sample]["matrix_filter_max"],
+    input:
+        matrix = "hicexplorer/matrix/{sample}_{D}.h5",
+    output:
+        mc = "hicexplorer/corrected_matrix/{sample}_{D}_hic_corrected_matrix.h5",  
+        png = "hicexplorer/corrected_matrix/{sample}_{D}.diagnostic_plot.png",
+    log:
+        log = "logs/hicexplorer/{sample}_{D}.correct_matrix.log",
+        logp = "logs/hicexplorer/{sample}_{D}.plot.log"
+    run:
+        shell(
+            "{params.hicCM} diagnostic_plot -m {input.matrix} --plotName {output.png} >& {log.logp}")
+        shell(
+            "{params.hicCM} correct --filterThreshold {params.filterT_min} {params.filterT_max} --perchr -m {input.matrix} -o {output.mc} >& {log.log}")
+
+        
+rule find_TADs:
+    params:
+        minDepth = "50000",
+        maxDepth = "200000",
+        prefix = "TADS/{sample}_{D}"
+    input:
+        mc = "hicexplorer/corrected_matrix/{sample}_{D}_hic_corrected_matrix.h5",
+    output:
+        score_bedgraph = "TADS/{sample}_{D}_score.bedgraph",
+        boundaries = "TADS/{sample}_{D}_boundaries.bed",
+        domains = "TADS/{sample}_{D}_domains.bed",
+        bound_gff = "TADS/{sample}_{D}_boundaries.gff",
+        score_bm = "TADS/{sample}_{D}_tad_score.bm",
+        zscore = "TADS/{sample}_{D}_zscore_matrix.h5"
+    shell:
+        "hicFindTADs --matrix {input.mc} --minDepth {params.minDepth} --maxDepth {params.maxDepth} --correctForMultipleTesting fdr --outPrefix {params.prefix}"
+
+
+#compare TAD separation scores between replicates
+rule scatter:
+    params:
+        sample = "{sample}"
+    input:
+        bg1 = lambda wildcards: scatter_f1(wildcards.sample),
+        bg2 = lambda wildcards: scatter_f2(wildcards.sample)
+        
+    output:
+        bgt = "scatter/{sample}_score.txt",
+        spearman = "scatter/{sample}_spearman.txt"
+    run:
+        m = open(output.bgt, 'w')
+        d = open(input.bg1)
+        for line in d:
+            j = line.split()
+            f = open(input.bg2)
+            for line in f:
+                i = line.split()
+                if j[0] != i[0]:
+                    continue
+                if j[1] == i[1]:
+                    m.write(str(j[0]) + "\t" + str(j[1]) + "\t" + str(j[2]) + "\t" + str(j[4]) + "\t" + str(i[0]) + "\t" + str(i[1]) + "\t" + str(i[2]) + "\t" + str(i[4]) + "\n")
+        f.close()
+        d.close()
+        m.close()
+
+        t = open(output.bgt)
+        s = open(output.spearman, 'w')
+        n = list()
+        o = list()
+        for line in t:
+            l = line.split()
+            n.append(float(l[3]))
+            o.append(float(l[7]))
+        s.write(str(stats.spearmanr(n,o)))
+        t.close()
+        s.close()
+        
+#find high confidence TADs using replicate datasets
+rule merge_boundaries:
+    params:
+        sample = "{sample}"
+    input:  
+        bb = lambda wildcards: reps(wildcards.sample)
+        #bb2 = "TADS/{sample}_d2_boundaries.bed"
+    output:
+        bbm = "merged_boundaries/{sample}_merge",
+        bbmm = "merged_boundaries/{sample}_merge_mid5000",
+        bbl = "merged_boundaries/{sample}_lc",
+    run:
+        if len(input.bb) > 1:
+            shell(
+                 """cat {input.bb} | sort -k1,1 -k2,2n | awk '$3-$2<=10000' | bedtools merge -i - -c 1 -o count | awk '$4==2' | awk '{{print $1"\t"$2"\t"$3"\t{params.sample}_BOUNDARY_HC_"NR}}' > {output.bbm}""")
+            shell(
+                """awk -F "\t" '{{a=$3+$2;b=a/2;c=b+2500;d=b-2500;print $1"\t" d"\t" c"\t" $4}}' {output.bbm} > {output.bbmm}""")
+            shell(
+                """cat {input.bb} | sort -k1,1 -k2,2n | awk '$3-$2<=10000' | bedtools merge -i - -c 1 -o count | awk '$4==1' | awk '{{print $1"\t"$2"\t"$3"\t{params.sample}_BOUNDARY_LC_"NR}}' > {output.bbl}""")
+        else:
+            shell(
+               """awk '{{print $1"\t"$2"\t"$3"\t{params.sample}_BOUNDARY_"NR}}' {input.bb[0]} > {output.bbmm}""")
+            shell(
+               """cp {input.bb[0]} {output.bbm}""")
+            #to create dummy output
+            shell(
+               """cp {input.bb[0]} {output.bbl}""")
+            #to create dummy output
+
+#liftover TAD coordinates from one species to another
+rule hal:
+    params:
+        hal_path = "halLiftover",
+        do = lambda wildcards: config[wildcards.sample]["hal"],
+        dt = lambda wildcards: config[wildcards.sample2]["hal"],
+    input:
+        hal_file = config["hal_file"],
+        mb = "merged_boundaries/{sample}_merge_mid5000",
+    output:
+        "boundary_hal/{sample}_{sample2}.hal"
+    shell:
+        """{params.hal_path} {input.hal_file} {params.do} {input.mb} {params.dt} {output}"""
+        
+#consolidate lifted over coordinates within 5000 bp            
+rule hal_filter_1:
+        input:
+            hal = rules.hal.output,
+        output:
+            new = "boundary_summaries/new/{sample}_{sample2}_c.bed"
+        run:
+            shell(
+                """sort -k1,1 -k2,2n {input.hal} | bedtools merge -i - -d 5000 -c 4 -o collapse > {output.new}""")
+
+#filter liftover IDs 
+rule hal_filter_2:
+        input:
+            hal = rules.hal_filter_new_1.output.new
+        output:
+            temp = "boundary_summaries/new/{sample}_{sample2}_c2.bed",
+        run:
+             def most_frequent(List): 
+                  counter = 0
+                  num = List[0] 
+                  for i in List: 
+                      curr_frequency = List.count(i) 
+                      if(curr_frequency> counter): 
+                          counter = curr_frequency 
+                          num = i 
+                  return num 
+             f = open(input.hal, "r")
+             z = open(output.temp, "w")
+             for line in f:
+                  l = line.split()
+                  ids = l[3].split(',')
+                  m = most_frequent(ids)
+                  z.write(str(l[0]) + "\t" + str(l[1]) + "\t" + str(l[2]) + "\t" + str(m) +"\n")
+             z.close()
+ 
+#remove liftover features smaller than 500 bp
+rule hal_filter_3:
+        input:
+            temp = rules.hal_filter_new_2.output.temp
+        output:
+            n = "boundary_summaries/new/{sample}_{sample2}.bed"
+        run:
+             f = open(input.temp, "r")
+             b = {}
+             for line in f:
+                 l = line.split()
+                 size = int(l[2]) - int(l[1])
+                 if size > 500:
+                     print(size)
+                     try:
+                         v = b[l[3]]
+                         if v > size:
+                             continue
+                         else:
+                             del b[l[3]]
+                             b[l[3]] = size
+                     except KeyError:
+                         b[l[3]] = size
+             f = open(input.temp, "r")
+             x = open(output.n, "w")
+             for line in f:
+                 l = line.split()
+                 size = int(l[2]) - int(l[1])
+                 try:
+                     t = b[l[3]] 
+                     if t == size:
+                         x.write(str(l[0]) + "\t" + str(l[1]) + "\t" + str(l[2]) + "\t" + str(l[3]) + "\t" + str(size) +"\n")
+                 except KeyError:
+                     continue
+             x.close()
+             
+#intersect lifted over boundary coordinates with HC and LC TADs in the target species
+rule boundary_concat:
+    input:
+        hal_merge_500_f = rules.hal_filter_new_3.output.n,
+        #liftover
+        mm = lambda wildcards: concat(wildcards.sample, wildcards.sample2),
+        #merged_boundaries sample2, 0 = HC, 1 = LC
+    output:
+        hc_cons_bounds = "boundary_summaries/new/5000/{sample}_{sample2}_hc_conserved_boundaries",
+        lc_cons_bounds = "boundary_summaries/new/5000/{sample}_{sample2}_lc_conserved_boundaries",
+    params:
+        sample = "{sample}",
+        sample2 = "{sample2}"
+    run:
+        if len(input.mm) > 1:
+            shell(
+                """bedtools closest -d -a {input.hal_merge_500_f} -b {input.mm[0]} | awk '$10<=5000' > {output.hc_cons_bounds}""")
+            shell(
+                "bedtools closest -d -a {input.hal_merge_500_f} -b {input.mm[1]} | awk '$10<=5000' > {output.lc_cons_bounds}")
+                #boundary_summaries/{params.sample}_{params.sample2}_lc_conserved_boundaries")
+        else:
+            shell(
+                """bedtools closest -d -a {input.hal_merge_500_f} -b {input.mm[0]} | awk '$10<=5000' > {output.hc_cons_bounds}""")
+            shell(
+                """touch {output.lc_cons_bounds}""")
+            
+#summary statistics for each liftover                   
+rule boundary_summary:
+    input:
+        cons_bounds = lambda wildcards: summary(wildcards.sample, wildcards.sample2),
+        hal_merge_500_f = "boundary_summaries/{sample}_{sample2}_merge_500bp_f.bed",
+    params:
+        sample = "{sample}",
+        sample2 = "{sample2}"
+    output:
+        bs = "boundary_summaries/{sample}_{sample2}.boundary_summary.txt"
+    run:
+        f = open(output.bs, "w")
+        b = sb.getoutput("""cat {} | cut -f 4,5 | tr "\t" "\n" | tr "," "\n" | sort | uniq | grep -c BOUNDARY""".format(input.cons_bounds))
+        a = sb.getoutput("""cut -f 4,5 {} | tr "\t" "\n" | tr "," "\n" | sort | uniq | grep -c BOUNDARY""".format(input.hal_merge_500_f))
+        c = float(b)/float(a)
+        f.write(params.sample + "\t" + params.sample2 + "\t" + str(a) + "\t" + str(b) + "\t" + str(c) + "\n")    
+            
+        f.close()
+
+#find high confidence TADs based on those found within both replicates - boundaries within 5kb.
+rule merge_domains:
+        input:
+            lambda wildcards: domains(wildcards.sample)
+        output:
+            hc = "merged_domains/{sample}_domains_hc.bed"),
+            s= "merged_domains/{sample}_domains_hc_sizes.bed"),
+            a= "merged_domains/{sample}_domains_all.bed"),
+
+        run:
+            if len(input) > 1:
+                shell(
+                    """bedtools intersect -wa -wb -a {input[0]} -b {input[1]} | awk '(($12-$3>=0 && $12-$3<=5000) || ($3-$12>=0 && $3-$12<=5000)) && (($11-$2>=0 && $11-$2<=5000) || ($2-$11>=0 && $2-$11<=5000))' | awk '{{print  $1"\t"($2+$11)/2"\t"($3+$12)/2"\t""DOMAINS_"NR}}' | sort -k1,1 -k2,2n >  {output.hc}""")
+                shell(
+                    """cat {output.hc} | awk '{{print $4"\t"$3-$2}}' | sort -k1b,1 > {output.s}""")
+                shell(
+                    """cat {input} |sort -k1,1 -k2,2n > {output.a}""")
+
+            else:
+                shell(
+                    """awk '{{print $1"\t"$2"\t"$3"\t""DOMAINS_"NR}}' {input[0]} > {output.hc}""")
+                shell(
+                    """cat {output.hc} | awk '{{print $4"\t"$3-$2}}' | sort -k1b,1 > {output.s}""")
+                shell(
+
+                    """cp {input[0]} {output.a}""")
+
+
+
+#create individual files for each boundary to prepare for liftover
+rule expand:
+    params:
+        "domain_hal/{sample}_{sample2}/"
+    input:
+        "merged_domains/{sample}_domains_hc.bed"),
+    output:
+        "domain_hal/{sample}_{sample2}/q00",
+        touch("domain_hal/{sample}_{sample2}/expand.done")
+    run:
+        shell(
+            """split -l 1 --numeric-suffixes {input} {params}/q""")
+
+#perform liftover            
+rule domain_hal:
+    params:
+        f = "domain_hal/{sample}_{sample2}",
+        hal = hal_path,
+        do = lambda wildcards: config[wildcards.sample]["hal"],
+        dt = lambda wildcards: config[wildcards.sample2]["hal"],
+    input:
+        hal_file = config["hal_file"],
+        q = "domain_hal/{sample}_{sample2}/q00"
+    output:
+        "domain_hal/{sample}_{sample2}/q00.bed",
+        touch("domain_hal/{sample}_{sample2}/domain_hal.done")
+    run:
+        shell( 
+            """cd {params.f}; for file in *; do {params.hal} {input.hal_file} {params.do} $file {params.dt} $file\.bed; done""")
+
+#merge lifted over coordinates within 20kb                         
+rule domain_sort:
+    params:
+        f = "domain_hal/{sample}_{sample2}",
+    input:
+        "domain_hal/{sample}_{sample2}/q00.bed"
+    output:
+        "domain_hal/{sample}_{sample2}/q00.bed_merge",
+        touch("domain_hal/{sample}_{sample2}/domain_sort.done")
+    run:
+        shell(
+            """cd {params.f}; for file in *.bed; do sort -k1,1 -k2,2n $file | bedtools merge -i - -d 20000 -c 4 -o distinct > $file\_merge; done""")
+ 
+#remove features <5kb
+rule domain_filter:
+    params:
+        f = "domain_hal/{sample}_{sample2}",
+    input:
+        "domain_hal/{sample}_{sample2}/q00.bed_merge"
+    output:
+        "domain_hal/{sample}_{sample2}/q00.bed_merge_5000",
+        touch("domain_hal/{sample}_{sample2}/domain_filter.done")
+    run:
+        shell(
+            """cd {params.f}; for file in *.bed_merge; do awk '$3-$2 >= 5000' $file > $file\_5000; done""")        
+#group domains with same ID  
+rule domain_group:
+    params:
+        f = "domain_hal/{sample}_{sample2}",
+    input:
+        "domain_hal/{sample}_{sample2}/q00.bed_merge_5000"
+    output:
+        "domain_hal/{sample}_{sample2}/q00.bed_merge_5000_group",
+        touch("domain_hal/{sample}_{sample2}/domain_group.done")
+    run:
+        shell(
+            """cd {params.f}; for file in *.bed_merge_5000; do awk '{{print $0"\t"$3-$2}}' $file | bedtools groupby -g 4 -c 5 -o sum  > $file\_group ; done""")            
+
+#consolidate individual liftover files into master file and calculate size of domains. 
+rule domain_cat:
+    params:
+        f = "domain_hal/{sample}_{sample2}",
+        sample = "{sample}",
+        sample2 = "{sample2}",
+    input:
+        bm = "domain_hal/{sample}_{sample2}/q00.bed_merge_5000",
+        bmg = "domain_hal/{sample}_{sample2}/q00.bed_merge_5000_group"
+    output:
+        ld = "domain_hal/{sample}_{sample2}/liftover_domains"),
+        lds = "domain_hal/{sample}_{sample2}/liftover_domain_sizes")
+
+    run:
+        shell(
+            """cd {params.f}; cat *.bed_merge_5000 | sort -k4b,4 > {output.ld}""")
+        shell(
+            """cd {params.f}; cat *.bed_merge_5000_group | sort -k1b,1 > {output.lds}""")
+            
+#find continuous domains - remove truncated or expanded domains due to large insertion/deletions
+rule domain_sizes:
+    params:
+        f = "domain_hal/{sample}_{sample2}",
+        sample = "{sample}",
+        sample2 = "{sample2}",
+    input:
+        ld = "domain_hal/{sample}_{sample2}/liftover_domains"),
+        lds = "domain_hal/{sample}_{sample2}/liftover_domain_sizes"),
+        hc_o = "merged_domains/{sample}_domains_hc.bed"),
+        hc_t = "merged_domains/{sample2}_domains_hc.bed"),
+        s = "merged_domains/{sample}_domains_hc_sizes.bed"),
+    output:
+        cc = "domain_hal/{sample}_{sample2}/continuous_coords",
+    run:
+        shell(
+             """cd {params.f}; sort -k4b,4 {input.hc_o} | join -1 4 -2 4 {input.ld} - > {params.sample}_{params.sample2}_coords""")
+        shell(
+             """cd {params.f}; sort -k4b,4 {input.hc_t} | join -1 4 -2 1 - {params.sample}_{params.sample2}_coords > {params.sample}_{params.sample2}_coords_size1""")
+        shell(
+             """cd {params.f}; join -1 1 -2 1 {input.s} {input.lds} > domain_sizes""")
+        shell(
+            """cd {params.f}; join -1 1 -2 1 domain_sizes {params.sample}_{params.sample2}_coords_size1 > {params.sample}_{params.sample2}_coords_size2""")
+        shell(
+                """cd {params.f}; awk '$3>=($2-(0.5 * $2)) && $3<=($2+(0.5 * $2))' {params.sample}_{params.sample2}_coords_size2 > {params.sample}_{params.sample2}_coords_te_filt""")
+        shell(
+            """cd {params.f}; awk '$3<=($2-(0.5 * $2)) || $3>=($2+(0.5 * $2))' {params.sample}_{params.sample2}_coords_size2 > {params.sample}_{params.sample2}_tande""")
+        shell(
+            """cd {params.f}; awk '{{print $1}}' {params.sample}_{params.sample2}_coords_te_filt | sort | uniq -c > {params.sample}_{params.sample2}_coords_te_filt_counts""")
+        shell(
+            """cd {params.f}; cat {params.sample}_{params.sample2}_coords_te_filt_counts | grep " 1 " | sort -k2b,2 | awk '{{print $2}}' > {params.sample}_{params.sample2}_continuous""")
+        shell(
+            """cd {params.f}; join -1 1 -2 1 {params.sample}_{params.sample2}_continuous {params.sample}_{params.sample2}_coords_te_filt > continuous_coords""")
+
+#sort LC domains and ID domains
+rule domains_2:            
+        input:
+            w = lambda wildcards: domains(wildcards.sample),
+            hc = "merged_domains/{sample}_domains_hc.bed"
+        output:
+            d1 = "TADS/{sample}_d1_l5kb",
+            d2 = "TADS/{sample}_d2_l5kb",
+            d1_lc = "TADS/{sample}_d1_lc",
+            d2_lc = "TADS/{sample}_d2_lc",
+            a = "merged_domains/{sample}_domains_all_ID.bed",
+
+        run:
+            if len(input.w) > 1:
+                shell(
+                    """bedtools intersect -wa -wb -a {input.w[0]} -b {input.w[1]} | awk '(($12-$3>=0 && $12-$3<=5000) || ($3-$12>=0 && $3-$12<=5000)) && (($11-$2>=0 && $11-$2<=5000) || ($2-$11>=0 && $2-$11<=5000))' | cut -f 1-3 - >  {output.d1}""")
+                shell(
+                    """bedtools intersect -wa -wb -a {input.w[0]} -b {input.w[1]} | awk '(($12-$3>=0 && $12-$3<=5000) || ($3-$12>=0 && $3-$12<=5000)) && (($11-$2>=0 && $11-$2<=5000) || ($2-$11>=0 && $2-$11<=5000))' | cut -f 10-12 - >  {output.d2}""")
+                shell(
+                    """grep -v -f {output.d1} {input.w[0]} | cut -f 1-3 > {output.d1_lc}""")
+                shell(
+                    """grep -v -f {output.d1} {input.w[1]} | cut -f 1-3 > {output.d2_lc}""")
+                shell(
+                    """cut -f 1-3 {input.hc} | cat - {output.d1_lc} {output.d2_lc} | awk '{{print  $1"\t"$2"\t"$3"\t""DOMAINS_"NR}}' | sort -k1,1 -k2,2n > {output.a}""")
+
+            else:
+                shell(
+                    """awk '{{print $1"\t"$2"\t"$3"\t""DOMAINS_"NR}}' {input[0]} > {output.a}""")
+#find overlap of lifted over coords with original TAD coords.
+rule conserved_domains:
+    params:
+        sample = "{sample}",
+        sample2 = "{sample2}"
+    input:
+        merge = "domain_hal/{sample}_{sample2}/liftover_domains"),
+        cc = "domain_hal/{sample}_{sample2}/continuous_coords",
+        hc = "merged_domains/{sample2}_domains_hc.bed"),
+        cat = "merged_domains/{sample2}_domains_all_ID.bed"),
+    output:
+        o = "domain_summaries/{sample}_{sample2}.orth_or.txt",
+        br = "domain_summaries/{sample}_{sample2}.orth_br.txt",
+        o_wb = "domain_summaries/{sample}_{sample2}.orth.txt",
+        ids = "domain_summaries/{sample}_{sample2}.orth_orIDs.txt",
+        coords = "domain_summaries/{sample}_{sample2}.orth_or_dmelcoords.txt"
+    run:
+        #overlap with at least one domain replicate - orthologous domains
+        shell(
+            """awk '{{print $7"\t"$8"\t"$9"\t"$1"\t"$10"\t"$11"\t"$12}}' {input.cc} | bedtools intersect -wa -wb -f 0.9 -r -a - -b {input.cat} | awk '{{print $4"\t"$5"\t"$6"\t"$7"\t"$8"\t"$9"\t"$10"\t"$11}}' > {output.o}""")
+        #overlap with both replicates
+        shell(
+            """awk '{{print $7"\t"$8"\t"$9"\t"$1"\t"$10"\t"$11"\t"$12}}' {input.cc} | bedtools intersect -wa -wb -f 0.9 -r -a - -b {input.hc} | awk '{{print $4"\t"$5"\t"$6"\t"$7"\t"$8"\t"$9"\t"$10"\t"$11}}' > {output.br}""")
+        #overlap with at least one replicate and boundaries within 5kb
+        shell(
+            """awk '{{print $7"\t"$8"\t"$9"\t"$1"\t"$10"\t"$11"\t"$12}}' {input.cc} | bedtools intersect -wa -wb -f 0.9 -r -a - -b {input.cat} |  awk '(($9-$2>=0 && $9-$2<=5000) || ($2-$9>=0 && $9-$2<=5000)) && (($10-$3>=0 && $10-$3<=5000) || ($3-$10>=0 && $3-$10<=5000))' | awk '{{print $4"\t"$5"\t"$6"\t"$7"\t"$8"\t"$9"\t"$10"\t"$11}}' > {output.o_wb}""")   
+        shell(
+            """awk '{{print $2"_"$1"\t"$5"_"$8}}' {output.o} > {output.ids}""")
+        shell(
+            """awk '{{print $2"_"$1"\t"$3"\t"$4","$5"_"$8"\t"$6"\t"$7}}' {output.o} > {output.coords}""")
+
+rule domain_summary:
+    params:
+        sample = "{sample}",
+        sample2 = "{sample2}"
+    input:
+        merge = os.path.join(config["lo_path"], "domain_hal/{sample}_{sample2}/liftover_domains"),
+        cc = "domain_hal/{sample}_{sample2}/continuous_coords",
+        hc = "merged_domains/{sample2}_domains_hc.bed"),
+        cat = "merged_domains/{sample2}_domains_all.bed")
+    output:
+        ds = "domain_summaries/{sample}_{sample2}.domain_summary.txt"
+    run:
+        f = open(output.ds, "w")
+        a = sb.getoutput("""awk '{{print $4}}' {} | sort | uniq -c | wc -l""".format(input.merge))
+        #unique lifted over domains
+        b = sb.getoutput("""awk '{{print $7"\t"$8"\t"$9}}' {} | bedtools intersect -wa -wb -f 0.9 -r -a - -b {} | cut -f 1-3 | sort | uniq | wc -l""".format(input.cc, input.cat))
+        #overlap with at least one domain replicate - orthologous domains
+        c = sb.getoutput("""awk '{{print $7"\t"$8"\t"$9}}' {} | bedtools intersect -wa -wb -f 0.9 -r -a - -b {} | cut -f 1-3 | sort | uniq | wc -l""".format(input.cc, input.hc))
+        #overlap with both replicates
+        d = sb.getoutput("""awk '{{print $7"\t"$8"\t"$9}}' {} | bedtools intersect -wa -wb -f 0.9 -r -a - -b {} | awk '(($5-$2>=0 && $5-$2<=5000) || ($2-$5>=0 && $5-$2<=5000)) && (($6-$3>=0 && $6-$3<=5000) || ($3-$6>=0 && $3-$6<=5000))' | cut -f 1-3 | sort | uniq | wc -l""".format(input.cc, input.cat))   
+        #overlap with at least one replicate and boundaries within 5kb
+        r = float(c)/float(a)
+        p = float(b)/float(a)
+        f.write(params.sample + "\t" + params.sample2 + "\t" + str(a) + "\t" + str(b) + "\t" + str(c) + "\t" + str(d) + "\t" + str(r) + "\t" + str(p) + "\n")
+        f.close()
+
+rule concat:
+    input: 
+        ds = expand("domain_summaries/{samples}.domain_summary.txt", samples = combos),
+        bs = expand("boundary_summaries/{samples}.boundary_summary.txt", samples = combos)
+    output:
+        d = "domain_stats.txt",
+        b = "boundary_stats.txt"
+    run:
+        shell("""cat {input.bs} > {output.b}""") 
+        shell("""cat {input.ds} > {output.d}""")
+
+rule boundary_info:
+        input:   
+            bb = lambda wildcards: reps(wildcards.sample),
+            bm = "merged_boundaries/{sample}_merge_mid5000"
+        output:
+            o = "boundary_replicates/{sample}_summary.txt"
+        params:
+            sample = "{sample}"
+        run:
+            f = open(output.o, "w")
+            if len(input.bb) > 1:
+                a = sb.getoutput("""cat {} | wc -l""".format(input.bb[0]))
+                b = sb.getoutput("""cat {} | wc -l""".format(input.bb[1]))
+                c = sb.getoutput("""cat {} | wc -l""".format(input.bm))
+                f.write(params.sample + "\t" + str(a) + "\t" + str(b) + "\t" + str(c) +"\n")
+            else:
+                a = sb.getoutput("""cat {} | wc -l""".format(input.bb[0]))
+                c = sb.getoutput("""cat {} | wc -l""".format(input.bm))
+                f.write(params.sample + "\t" + str(a) + "\t" + "\t" + "\t" + str(c) +"\n")
+            f.close()
+            
+rule domain_info:
+        input:   
+            bd = lambda wildcards: domains(wildcards.sample),
+            hc = "merged_domains/{sample}_domains_hc.bed"),
+        output:
+            o = "domain_replicates/{sample}_summary.txt"
+        params:
+            sample = "{sample}"
+        run:
+            f = open(output.o, "w")
+            if len(input.bd) > 1:
+                a = sb.getoutput("""cat {} | wc -l""".format(input.bd[0]))
+                b = sb.getoutput("""cat {} | wc -l""".format(input.bd[1]))
+                c = sb.getoutput("""cat {} | wc -l""".format(input.hc))
+                f.write(params.sample + "\t" + str(a) + "\t" + str(b) + "\t" + str(c) +"\n")
+            else:
+                a = sb.getoutput("""cat {} | wc -l""".format(input.bd[0]))
+                c = sb.getoutput("""cat {} | wc -l""".format(input.hc))
+                f.write(params.sample + "\t" + str(a) + "\t" + "\t" + "\t" + str(c) +"\n")
+            f.close()        
+
+
+
+
+
+
